@@ -1,7 +1,8 @@
+import com.github.javafaker.Faker;
+import com.integrations.domain.event.schema.PageViewEvent;
+import constants.KafkaConstants;
 import kafka.RecordConsumer;
 import kafka.RecordProducer;
-import com.github.javafaker.Faker;
-import model.PageViewEvent;
 import org.apache.avro.generic.GenericRecord;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -20,28 +21,25 @@ public class KafkaTests {
 
     @Test
     public void i_send_message_to_kafka_producer_then_consumer_receives() throws IOException {
-        String schemaPath = "src/test/resources/avro-schemas/page-view-event.avsc";
-        String topicName = "page-view-event";
 
         // create an object
-        PageViewEvent expectedPageViewEvent = new PageViewEvent();
-        expectedPageViewEvent.setItemId(faker.number().digits(8));
-        expectedPageViewEvent.setItemTitle(faker.commerce().productName());
-        expectedPageViewEvent.setScrollRange(Integer.parseInt(faker.number().digits(2)));
-        expectedPageViewEvent.setStayTerm(Long.parseLong(faker.number().digits(2)));
-        expectedPageViewEvent.setScrollUpDownCount(Integer.parseInt(faker.number().digits(2)));
+        PageViewEvent expectedPageViewEvent = PageViewEvent.newBuilder()
+            .setItemId(faker.number().digits(8))
+            .setItemTitle(faker.commerce().productName())
+            .setScrollRange(Integer.parseInt(faker.number().digits(2)))
+            .setStayTerm(Long.parseLong(faker.number().digits(2)))
+            .setScrollUpDownCount(Integer.parseInt(faker.number().digits(2)))
+            .build();
 
-        // let's start the consumer
-        RecordConsumer recordConsumer = RecordConsumer.createConsumer();
-
-        // crete and produce the avro record
+        // create and produce the avro record
         RecordProducer recordProducer = RecordProducer.createProducer();
-        recordProducer.sendAvroRecord(topicName, "test-key", expectedPageViewEvent, schemaPath);
+        recordProducer.sendAvroRecord(KafkaConstants.TOPIC_NAME, "test-key", expectedPageViewEvent, KafkaConstants.SCHEMA_PATH);
 
-        // fetch
-        GenericRecord actualRecord = recordConsumer.consumeAvroRecord(topicName,expectedPageViewEvent.getItemId(), schemaPath);
+        // let's start the consumer and retrieve the records
+        RecordConsumer recordConsumer = RecordConsumer.createConsumer();
+        GenericRecord actualRecord = recordConsumer.consumeAvroRecord(KafkaConstants.TOPIC_NAME,expectedPageViewEvent.getItemId().toString(), KafkaConstants.SCHEMA_PATH);
 
-        // verify
+        // verify our expected vs actual objects :bloody-heart-pumping:
         log.info("actual record: {}", actualRecord);
         log.info("expected record: {}", expectedPageViewEvent);
         PageViewEvent actualPageViewEvent = recordObjectMapper.mapRecordToObject(actualRecord, new PageViewEvent());
